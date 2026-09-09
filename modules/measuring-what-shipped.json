@@ -1,0 +1,64 @@
+{
+  "slug": "measuring-what-shipped",
+  "title": "Measuring What Actually Shipped",
+  "track": "ai-engineering",
+  "order": 2,
+  "minutes": 20,
+  "objectives": [
+    "Distinguish structural validation from quality evaluation",
+    "Choose a metric that moves when the system gets worse",
+    "Design a check that runs in CI and blocks a merge"
+  ],
+  "prerequisites": ["validating-llm-output"],
+  "body": [
+    {
+      "kind": "paragraph",
+      "text": "Validation and evaluation get used as if they were the same word, and treating them as one thing is how pipelines end up producing well formed rubbish at scale. A schema check tells you the artefact is structurally sound. It cannot tell you the artefact is any good, and no amount of stricter typing will change that."
+    },
+    {
+      "kind": "heading",
+      "text": "What code can decide, and what it cannot"
+    },
+    {
+      "kind": "paragraph",
+      "text": "Code can decide whether every field is present, whether the identifiers are unique across the corpus, whether the referenced module exists, and whether the code in the lesson actually runs. All of those are decidable, none of them need judgement, and a program does not get tired at the thirtieth item, which is exactly when a human reviewer starts approving things out of fatigue."
+    },
+    {
+      "kind": "paragraph",
+      "text": "Code cannot decide whether a distractor is plausible to somebody who is still learning the material, whether a question measures the skill or merely the reading of a convoluted sentence, or whether the answer is still correct after the library moved a version. Those stay human, and the entire point of automating the first list is to buy time for the second."
+    },
+    {
+      "kind": "callout",
+      "title": "A validator with no failing test is not validating",
+      "text": "Keep fixtures that are deliberately broken, one per rule, and assert that each is rejected for the right reason. Without them a refactor can quietly turn a check into a no-op and every run stays green while nothing is being checked."
+    }
+  ],
+  "exercises": [
+    {
+      "kind": "multiple_choice",
+      "id": "validation-versus-evaluation",
+      "stem": "Which of these can a deterministic script decide on its own, with no human judgement involved?",
+      "options": [
+        "Whether a wrong option is plausible to somebody learning the topic",
+        "Whether the question measures the skill or the wording of the sentence",
+        "Whether the answer is still correct after the library changed version",
+        "Whether every identifier in the corpus is used exactly once"
+      ],
+      "key": 3,
+      "explanation": "Uniqueness is a set operation over the corpus and needs no judgement at all. The other three require knowing what a learner confuses, what the item was meant to measure, and what changed upstream. None of that is present in the text of the item, which is why they cannot be automated away."
+    },
+    {
+      "kind": "multiple_choice",
+      "id": "key-position-drift",
+      "stem": "Across a course, most correct answers sit in the same position. Why does that matter beyond being untidy?",
+      "options": [
+        "It makes the rendered files noticeably harder to review in a diff",
+        "It means a learner can pass without knowing any of the material",
+        "It slows the pipeline down whenever the corpus grows past a point",
+        "It makes the explanations read repetitively when taken together"
+      ],
+      "key": 1,
+      "explanation": "A dominant position is a winning strategy that requires no knowledge at all: pick the same option every time and pass. The assessment still looks legitimate item by item, and each individual question can be perfectly written. The defect only exists in the distribution, which is why it survives review and only shows up in the data."
+    }
+  ]
+}

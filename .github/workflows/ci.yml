@@ -1,0 +1,34 @@
+name: validate curriculum
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r requirements.txt
+
+      # The validator has to be able to fail, so its own tests run first.
+      # A green suite here is what makes a green gate below mean anything.
+      - name: test the validator
+        run: python -m pytest tests/ -q
+
+      # Fails closed: any error in any layer stops the merge.
+      - name: validate the corpus
+        run: python -m pipeline.cli check modules
+
+      # A rendered file that differs from what the renderer produces means
+      # somebody edited a build artefact by hand.
+      - name: rendered files are current
+        run: |
+          python -m pipeline.cli render modules
+          git diff --exit-code -- modules/

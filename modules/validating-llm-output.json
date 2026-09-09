@@ -1,0 +1,90 @@
+{
+  "slug": "validating-llm-output",
+  "title": "Validating Non-Deterministic Output",
+  "track": "ai-engineering",
+  "order": 1,
+  "minutes": 25,
+  "objectives": [
+    "Explain why the guarantee lives in the gate rather than in the model",
+    "Write a Pydantic model that rejects unexpected keys as well as missing ones",
+    "Decide when a pipeline should fail closed rather than pass the output through"
+  ],
+  "prerequisites": [],
+  "body": [
+    {
+      "kind": "paragraph",
+      "text": "A language model is a probabilistic component sitting inside a system that has to be reliable. You cannot make the model produce valid output every single time, and any design that depends on it doing so is a design waiting to page you at three in the morning. What you can do is guarantee that invalid output never leaves the pipeline."
+    },
+    {
+      "kind": "heading",
+      "text": "Do not ask the model for the file"
+    },
+    {
+      "kind": "paragraph",
+      "text": "The single largest reduction in failure comes before any validation runs. Ask the model for the data, not the formatted artefact. Have it return structured JSON against a schema, validate that object, and then render the Markdown or the YAML yourself from the validated result. The model never touches the syntax, so the model can never break the syntax: no unbalanced code fences, no broken front matter delimiters, no quote that silently changes what a YAML value means."
+    },
+    {
+      "kind": "code",
+      "language": "python",
+      "source": "from pydantic import BaseModel, ConfigDict, Field\n\nclass Lesson(BaseModel):\n    model_config = ConfigDict(extra=\"forbid\")\n\n    slug: str = Field(pattern=r\"^[a-z0-9-]+$\")\n    minutes: int = Field(ge=5, le=90)\n    objectives: list[str] = Field(min_length=2)"
+    },
+    {
+      "kind": "callout",
+      "title": "extra=\"forbid\" is the part people miss",
+      "text": "Without it, a misspelled field is simply dropped and the object still validates. The lesson ships with no objectives and nothing anywhere reports a problem. Rejecting unexpected keys catches the failure that is otherwise invisible."
+    },
+    {
+      "kind": "heading",
+      "text": "Fail closed, with a budget"
+    },
+    {
+      "kind": "paragraph",
+      "text": "When validation fails, feed the validator error back to the model and try again, but bound the number of attempts. Without a limit, a repair loop on a genuinely impossible request will spend money until somebody notices the bill. After the budget is exhausted the pipeline emits nothing at all. Publishing nothing is a recoverable state; publishing something wrong is not."
+    }
+  ],
+  "exercises": [
+    {
+      "kind": "multiple_choice",
+      "id": "why-render-yourself",
+      "stem": "Why does having code produce the Markdown, rather than the model, remove a whole class of failure?",
+      "options": [
+        "Because deterministic code runs considerably faster than a model call does",
+        "Because the model never writes syntax, so it cannot produce broken syntax",
+        "Because the resulting files end up smaller and cheaper to store at scale",
+        "Because it removes any need to validate the object that the model returned"
+      ],
+      "key": 1,
+      "explanation": "Speed and size are real but incidental. The last option is actively wrong: rendering from an object makes validation more important, not less, because everything downstream now trusts that object. The point is that unbalanced fences and broken delimiters stop being possible failures rather than becoming rarer ones."
+    },
+    {
+      "kind": "multiple_choice",
+      "id": "forbid-extra-keys",
+      "stem": "A schema accepts unexpected keys. A field is misspelled in the generated object. What happens?",
+      "options": [
+        "Validation fails and the offending field name is reported clearly",
+        "Validation fails but the error message points at the wrong field entirely",
+        "It validates, the field is dropped, and nothing anywhere reports it",
+        "It validates and the misspelled key is preserved in the final artefact"
+      ],
+      "key": 2,
+      "explanation": "This is the failure that has no symptom. The object validates, the real field takes its default or stays empty, and the artefact ships incomplete. Nobody sees an error, which is exactly why strict mode has to be the default rather than something you remember to turn on."
+    },
+    {
+      "kind": "code",
+      "id": "retry-policy",
+      "prompt": "Write should_retry(status_code, attempt, max_attempts). Retry on 429 and on any 5xx, because those are transient. Never retry on any other 4xx, because the request itself is the problem and repeating it just costs money. Stop once attempt has reached max_attempts.",
+      "function_name": "should_retry",
+      "starter": "def should_retry(status_code, attempt, max_attempts):\n    # attempt is zero based: 0 is the first try\n    pass",
+      "solution": "def should_retry(status_code, attempt, max_attempts):\n    if attempt >= max_attempts - 1:\n        return False\n    if status_code == 429:\n        return True\n    return 500 <= status_code < 600",
+      "tests": [
+        { "call": "should_retry(429, 0, 3)", "expected": true },
+        { "call": "should_retry(503, 1, 3)", "expected": true },
+        { "call": "should_retry(500, 2, 3)", "expected": false },
+        { "call": "should_retry(401, 0, 3)", "expected": false },
+        { "call": "should_retry(400, 0, 5)", "expected": false },
+        { "call": "should_retry(404, 1, 5)", "expected": false },
+        { "call": "should_retry(502, 0, 1)", "expected": false }
+      ]
+    }
+  ]
+}
