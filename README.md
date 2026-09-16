@@ -100,3 +100,46 @@ tests/                          the validator's own suite
 
 The CI job also re-renders and runs `git diff --exit-code`, so a hand edit to
 a build artefact fails the merge.
+
+## Análise de itens
+
+O resto deste pipeline julga um item pelo que ele parece. O `pipeline/itemstats.py`
+julga-o pelo que ele fez a uma população, e são coisas diferentes: um item pode
+estar impecavelmente escrito e continuar a não medir nada.
+
+```python
+from pipeline.itemstats import analisar, formatar
+print(formatar(analisar(respostas)))   # uma linha por candidato, 1 acertou 0 falhou
+```
+
+```
+100 candidatos, 8 itens
+KR-20: 0.80
+
+item           dificuldade  discrim.
+item-1                70%      0.65
+item-2                64%      0.72
+item-3                45%     -0.89
+              discriminacao NEGATIVA (-0.89): os melhores estao a falhar este item, suspeita da chave
+item-4                52%      0.82
+```
+
+O item 3 tem 45% de acerto. Pela dificuldade sozinha parece o melhor item do
+exame. A discriminação diz o contrário: quem tem boa nota no resto está a
+falhá-lo, o que quase sempre significa enunciado ambíguo ou chave errada.
+
+**A discriminação é calculada contra a nota total menos o próprio item.** Sem
+essa correção cada item correlaciona-se em parte consigo mesmo e a
+discriminação aparece inflacionada, sobretudo num exame de oito perguntas onde
+o item vale um oitavo da nota. Há um teste só para isso, porque a versão errada
+passa todos os outros.
+
+Com as escolhas de cada candidato, e não só o certo ou errado, faz também
+análise de distratores: um distrator que ninguém escolhe não está a fazer
+trabalho nenhum, e um distrator escolhido por quem tem nota acima da média é
+uma segunda resposta defensável disfarçada.
+
+Abaixo de 30 respostas o relatório diz que os números são indicativos em vez de
+os apresentar como se decidissem alguma coisa. E onde não há variância devolve
+"não calculável" em vez de zero, porque zero significa "não discrimina" e isso
+é diferente de "não dá para saber".
